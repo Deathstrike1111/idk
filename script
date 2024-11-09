@@ -1,0 +1,90 @@
+local Players, UserInputService, CoreGui = game:GetService("Players"), game:GetService("UserInputService"), game:GetService("CoreGui")
+local water = workspace:FindFirstChild("Water")
+
+local screenGui = Instance.new("ScreenGui", CoreGui)
+local function createButton(name, pos)
+    local button = Instance.new("TextButton", screenGui)
+    button.Size, button.Position, button.Text = UDim2.new(0, 200, 0, 50), pos, name
+    return button
+end
+
+local freezeButton = createButton("Freeze/Unfreeze Water", UDim2.new(0, 10, 0, 10))
+local highlightButton = createButton("Highlight Players", UDim2.new(0, 10, 0, 70))
+local selectButton = createButton("Select Player", UDim2.new(0, 10, 0, 130))
+local speedButton = createButton("Set Speed", UDim2.new(0, 10, 0, 190))
+local resetButton = createButton("Reset Speed", UDim2.new(0, 10, 0, 250))
+
+local freezeKey, frozenColor, walkable = Enum.KeyCode.F, Color3.new(0.6, 0.8, 1), true
+local highlightColor, highlightKey = Color3.new(1, 0, 0), Enum.KeyCode.LeftControl
+local selectKey, resetKey, speedKey = Enum.KeyCode.T, Enum.KeyCode.Y, Enum.KeyCode.G
+local customSpeed, selectedPlayers = 32, {}
+
+if water then
+    local origColor, origCollide = water.Color, water.CanCollide
+    local function freezeWater() water.Color, water.CanCollide = frozenColor, walkable end
+    local function unfreezeWater() water.Color, water.CanCollide = origColor, origCollide end
+
+    freezeButton.MouseButton1Click:Connect(function()
+        if water.Color == frozenColor then unfreezeWater() else freezeWater() end
+    end)
+
+    UserInputService.InputBegan:Connect(function(input) if input.KeyCode == freezeKey then freezeWater() end end)
+    UserInputService.InputEnded:Connect(function(input) if input.KeyCode == freezeKey then unfreezeWater() end end)
+else
+    warn("Water part not found in workspace")
+end
+
+local function highlightPlayers(color)
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= Players.LocalPlayer then
+            local char = player.Character or player.CharacterAdded:Wait()
+            local backpack, hasInventory = char:WaitForChild("Backpack"), false
+            for _, item in pairs(backpack:GetChildren()) do if item:IsA("Tool") or item:IsA("Accessory") then hasInventory = true break end end
+            for _, part in pairs(char:GetChildren()) do if part:IsA("BasePart") then part.Color = hasInventory and color or Color3.new(1, 1, 1) end end
+        end
+    end
+end
+
+highlightButton.MouseButton1Click:Connect(function() highlightPlayers(highlightColor) end)
+UserInputService.InputBegan:Connect(function(input) if input.KeyCode == highlightKey then highlightPlayers(highlightColor) end end)
+
+local localPlayer = Players.LocalPlayer
+local function setSelectedPlayerSpeed(speed)
+    for _, player in pairs(selectedPlayers) do
+        if player and player.Character then
+            local humanoid = player.Character:FindFirstChild("Humanoid")
+            if humanoid then humanoid.WalkSpeed = speed end
+        end
+    end
+end
+
+local function resetSelectedPlayerSpeed()
+    for _, player in pairs(selectedPlayers) do
+        if player and player.Character then
+            local humanoid = player.Character:FindFirstChild("Humanoid")
+            if humanoid then humanoid.WalkSpeed = 16 end
+        end
+    end
+end
+
+local function selectPlayer()
+    local closestPlayer, closestDistance = nil, 100
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= localPlayer then
+            local char, rootPart = player.Character, player.Character:FindFirstChild("HumanoidRootPart")
+            if char and rootPart then
+                local dist = (localPlayer.Character.HumanoidRootPart.Position - rootPart.Position).Magnitude
+                if dist < closestDistance then closestDistance, closestPlayer = dist, player end
+            end
+        end
+    end
+    if closestPlayer then table.insert(selectedPlayers, closestPlayer) end
+end
+
+selectButton.MouseButton1Click:Connect(selectPlayer)
+speedButton.MouseButton1Click:Connect(function() setSelectedPlayerSpeed(customSpeed) end)
+resetButton.MouseButton1Click:Connect(resetSelectedPlayerSpeed)
+
+UserInputService.InputBegan:Connect(function(input)
+    if input.KeyCode == selectKey then selectPlayer() elseif input.KeyCode == speedKey then setSelectedPlayerSpeed(customSpeed) elseif input.KeyCode == resetKey then resetSelectedPlayerSpeed() end
+end)
